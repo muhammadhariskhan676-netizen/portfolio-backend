@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const axios = require('axios');
 const Portfolio = require('../models/Portfolio');
 const authMiddleware = require('../middleware/auth');
 
@@ -18,7 +19,7 @@ const cvStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'portfolio-cv',
-    resource_type: 'raw',  // required for PDF files
+    resource_type: 'raw',
     allowed_formats: ['pdf'],
     public_id: () => 'CV-' + Date.now()
   }
@@ -30,10 +31,10 @@ const uploadCV = multer({
     if (file.mimetype === 'application/pdf') cb(null, true);
     else cb(new Error('Only PDF files allowed!'));
   },
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// GET /api/cv  →  CV file info (public)
+// GET /api/cv
 router.get('/', async (req, res) => {
   try {
     const portfolio = await Portfolio.findOne();
@@ -51,40 +52,53 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/cv/view  →  Redirect to Cloudinary URL (public)
+// GET /api/cv/view  →  Stream PDF inline in browser
 router.get('/view', async (req, res) => {
   try {
     const portfolio = await Portfolio.findOne();
     if (!portfolio || !portfolio.cvFile || !portfolio.cvFile.url) {
       return res.status(404).json({ error: 'No CV uploaded yet.' });
     }
-    res.redirect(portfolio.cvFile.url);
+
+    // Fetch PDF from Cloudinary and stream it inline
+    const response = await axios.get(portfolio.cvFile.url, {
+      responseType: 'stream'
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${portfolio.cvFile.originalName || 'CV.pdf'}"`);
+    response.data.pipe(res);
   } catch (err) {
     res.status(500).json({ error: 'Server error.' });
   }
 });
 
-// GET /api/cv/download  →  Force download from Cloudinary (public)
+// GET /api/cv/download  →  Force download
 router.get('/download', async (req, res) => {
   try {
     const portfolio = await Portfolio.findOne();
     if (!portfolio || !portfolio.cvFile || !portfolio.cvFile.url) {
       return res.status(404).json({ error: 'No CV uploaded yet.' });
     }
-    // Add fl_attachment to force download
-    const downloadUrl = portfolio.cvFile.url.replace('/upload/', '/upload/fl_attachment/');
-    res.redirect(downloadUrl);
+
+    const response = await axios.get(portfolio.cvFile.url, {
+      responseType: 'stream'
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${portfolio.cvFile.originalName || 'HarisKhan_CV.pdf'}"`);
+    response.data.pipe(res);
   } catch (err) {
     res.status(500).json({ error: 'Server error.' });
   }
 });
 
-// POST /api/cv/upload  →  Upload new CV to Cloudinary (admin only)
+// POST /api/cv/upload  →  Upload new CV (admin only)
 router.post('/upload', authMiddleware, uploadCV.single('cv'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded.' });
 
-    // Delete old CV from Cloudinary if exists
+    // Delete old CV from Cloudinary
     const portfolio = await Portfolio.findOne();
     if (portfolio && portfolio.cvFile && portfolio.cvFile.publicId) {
       try {
@@ -94,7 +108,6 @@ router.post('/upload', authMiddleware, uploadCV.single('cv'), async (req, res) =
       }
     }
 
-    // Save new CV info to MongoDB
     const updatedPortfolio = await Portfolio.findOneAndUpdate(
       {},
       {
@@ -117,7 +130,7 @@ router.post('/upload', authMiddleware, uploadCV.single('cv'), async (req, res) =
   }
 });
 
-// DELETE /api/cv  →  Delete CV from Cloudinary (admin only)
+// DELETE /api/cv
 router.delete('/', authMiddleware, async (req, res) => {
   try {
     const portfolio = await Portfolio.findOne();
@@ -125,7 +138,6 @@ router.delete('/', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'No CV to delete.' });
     }
 
-    // Delete from Cloudinary
     if (portfolio.cvFile.publicId) {
       await cloudinary.uploader.destroy(portfolio.cvFile.publicId, { resource_type: 'raw' });
     }
