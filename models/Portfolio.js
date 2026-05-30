@@ -2,42 +2,43 @@ const mongoose = require('mongoose');
 
 const portfolioSchema = new mongoose.Schema({
   personalInfo: {
-    name:     { type: String, default: '' },
-    title:    { type: String, default: '' },
-    bio:      { type: String, default: '' },
-    email:    { type: String, default: '' },
-    phone:    { type: String, default: '' },
-    location: { type: String, default: '' },
-    github:   { type: String, default: '' },
-    linkedin: { type: String, default: '' },
-    image:    { type: String, default: '' }
+    name: String,
+    title: String,
+    bio: String,
+    email: String,
+    phone: String,
+    location: String,
+    github: String,
+    linkedin: String,
+    image: String  // Cloudinary URL
   },
   education: [{
-    degree:      { type: String, required: true },
-    institution: { type: String, required: true },
-    year:        { type: String, required: true },
-    description: { type: String, default: '' },
-    score:       { type: String, default: '' }
+    degree: String,
+    institution: String,
+    year: String,
+    description: String,
+    score: String
   }],
   skills: {
-    technical: [{ type: String }],
-    soft:      [{ type: String }]
+    technical: [String],
+    soft: [String]
   },
   hobbies: [{
-    name: { type: String, required: true },
-    icon: { type: String, default: '⭐' }
+    name: String,
+    icon: String
   }],
   projects: [{
-    title:       { type: String, required: true },
-    description: { type: String, default: '' },
-    tech:        [{ type: String }],
-    link:        { type: String, default: '' },
-    github:      { type: String, default: '' }
+    title: String,
+    description: String,
+    tech: [String],
+    link: String,
+    github: String
   }],
   cvFile: {
-    filename:     { type: String, default: '' },
+    url: { type: String, default: '' },         // Cloudinary URL
+    publicId: { type: String, default: '' },    // Cloudinary public_id (for deletion)
     originalName: { type: String, default: '' },
-    uploadedAt:   { type: Date }
+    uploadedAt: { type: Date, default: null }
   }
 }, { timestamps: true });
 
