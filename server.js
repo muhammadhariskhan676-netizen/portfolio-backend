@@ -151,13 +151,7 @@ app.use('/api/cv',        require('./routes/cv'));
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Portfolio API is running 🚀' });
 });
-app.get('/', (req, res) => {
-  res.send('Backend Running Successfully');
-});
 
-app.get('/test', (req, res) => {
-  res.json({ success: true });
-});
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
