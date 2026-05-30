@@ -1,26 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const Portfolio = require('../models/Portfolio');
 const authMiddleware = require('../middleware/auth');
 
-// Multer setup for profile image uploads
-const imageStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, 'profile-' + Date.now() + ext);
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Multer + Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'portfolio-profile',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [{ width: 500, height: 500, crop: 'fill' }]
   }
 });
+
 const uploadImage = multer({
-  storage: imageStorage,
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp/;
-    if (allowed.test(file.mimetype)) cb(null, true);
-    else cb(new Error('Only image files allowed!'));
-  },
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 // Helper: get or create the single portfolio document
@@ -32,7 +37,7 @@ async function getPortfolio() {
 
 // ─── PUBLIC ROUTES ────────────────────────────────────────────────────────────
 
-// GET /api/portfolio  →  full portfolio data (public)
+// GET /api/portfolio
 router.get('/', async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -56,14 +61,15 @@ router.put('/personal-info', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/portfolio/profile-image  (upload profile photo)
+// POST /api/portfolio/profile-image (Cloudinary)
 router.post('/profile-image', authMiddleware, uploadImage.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
     const portfolio = await getPortfolio();
-    portfolio.personalInfo.image = '/uploads/' + req.file.filename;
+    // Cloudinary returns full URL in req.file.path
+    portfolio.personalInfo.image = req.file.path;
     await portfolio.save();
-    res.json({ message: 'Profile image updated!', image: portfolio.personalInfo.image });
+    res.json({ message: 'Profile image updated!', image: req.file.path });
   } catch (err) {
     res.status(500).json({ error: 'Server error.' });
   }
@@ -71,7 +77,6 @@ router.post('/profile-image', authMiddleware, uploadImage.single('image'), async
 
 // ── EDUCATION ─────────────────────────────────────────────────────────────────
 
-// POST /api/portfolio/education
 router.post('/education', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -84,7 +89,6 @@ router.post('/education', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/portfolio/education/:id
 router.put('/education/:id', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -98,7 +102,6 @@ router.put('/education/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/portfolio/education/:id
 router.delete('/education/:id', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -112,7 +115,6 @@ router.delete('/education/:id', authMiddleware, async (req, res) => {
 
 // ── SKILLS ────────────────────────────────────────────────────────────────────
 
-// PUT /api/portfolio/skills  (replace all skills)
 router.put('/skills', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -127,7 +129,6 @@ router.put('/skills', authMiddleware, async (req, res) => {
 
 // ── HOBBIES ───────────────────────────────────────────────────────────────────
 
-// POST /api/portfolio/hobbies
 router.post('/hobbies', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -140,7 +141,6 @@ router.post('/hobbies', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/portfolio/hobbies/:id
 router.put('/hobbies/:id', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -154,7 +154,6 @@ router.put('/hobbies/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/portfolio/hobbies/:id
 router.delete('/hobbies/:id', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -168,11 +167,9 @@ router.delete('/hobbies/:id', authMiddleware, async (req, res) => {
 
 // ── PROJECTS ──────────────────────────────────────────────────────────────────
 
-// POST /api/portfolio/projects
 router.post('/projects', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
-    // tech can come as comma-separated string or array
     if (typeof req.body.tech === 'string') {
       req.body.tech = req.body.tech.split(',').map(t => t.trim()).filter(Boolean);
     }
@@ -185,7 +182,6 @@ router.post('/projects', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT /api/portfolio/projects/:id
 router.put('/projects/:id', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
@@ -202,7 +198,6 @@ router.put('/projects/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/portfolio/projects/:id
 router.delete('/projects/:id', authMiddleware, async (req, res) => {
   try {
     const portfolio = await getPortfolio();
